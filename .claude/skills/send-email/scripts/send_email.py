@@ -221,11 +221,15 @@ Generate the lesson email following Peggy's EXACT style and structure:"""
 
         # Try to use configured AI model
         if ai_model.startswith("gemini") and google_api_key:
-            print("🤖 Using Google Gemini API...")
-            import google.generativeai as genai
-            genai.configure(api_key=google_api_key)
-            model = genai.GenerativeModel(ai_model)
-            response = model.generate_content(prompt)
+            print(f"🤖 Using Google Gemini API (model: {ai_model})...")
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=google_api_key)
+
+            response = client.models.generate_content(
+                model=ai_model,
+                contents=prompt
+            )
             email_content = response.text
 
         elif ai_model.startswith("claude") and anthropic_api_key:

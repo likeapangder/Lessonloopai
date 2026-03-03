@@ -125,10 +125,6 @@ def main():
 
         step_times.append(("Convert to audio", convert_time))
 
-        if not success:
-            print("\n❌ Workflow failed at Step 1")
-            sys.exit(1)
-
         # Check MP3 file
         if not temp_mp3_path.exists():
             print(f"❌ Error: Temporary MP3 file was not created")
@@ -189,22 +185,22 @@ print(f'文件大小: {{len(transcript)}} 字符')
     # Step 3: Generate email
     print("\n📧 STEP 3/3: Generating email...")
 
-    # Output the transcript path for the lesson skill
-    print("\n" + "="*60)
-    print("📍 Generating email with AI analysis")
-    print("="*60)
-    print(f"\n📝 Transcript ready: {txt_file}")
-    print("\n🤖 Invoking Claude Code /lesson skill to:")
-    print("   • Analyze the lesson transcript")
-    print("   • Extract key topics, vocabulary, and corrections")
-    print("   • Generate personalized email following Peggy's style")
-    print("   • Open draft in Mail.app")
-    print("\n⏳ Processing...")
+    # Define send_email.py path
+    send_email_script = project_root / ".claude" / "skills" / "send-email" / "scripts" / "send_email.py"
 
-    # Output a marker that the lesson-summary skill can detect
-    print(f"\nLESSON_TRANSCRIPT_PATH={txt_file}")
+    if send_email_script.exists():
+        print(f"\n🚀 Launching send_email.py...")
+        email_cmd = f'python3 "{send_email_script}" "{txt_file}" --type {args.type} --to "{args.recipient}" --teacher "{args.teacher}"'
 
-    step_times.append(("Prepare for email", 0))
+        success, email_time = run_command(email_cmd, "Generating email with AI", timeout=300000)
+
+        if success:
+            step_times.append(("Generate email", email_time))
+        else:
+            print("⚠️ Email generation failed, but transcript is saved.")
+    else:
+        print(f"⚠️ Could not find send_email.py at {send_email_script}")
+        print("Please run email generation manually.")
 
     # Calculate total time
     total_time = time.time() - total_start
@@ -223,18 +219,6 @@ print(f'文件大小: {{len(transcript)}} 字符')
     for step_name, step_time in step_times:
         print(f"  • {step_name}: {step_time:.1f}s")
     print(f"\n⏱️  Total: {total_time:.1f} seconds ({total_time/60:.1f} minutes)")
-
-    print("\n" + "="*60)
-    print("✅ TRANSCRIPT READY - NOW GENERATING EMAIL...")
-    print("="*60)
-    print(f"\n📝 Transcript saved: {txt_file}")
-    print(f"\n🤖 Next step: Generate AI-analyzed email")
-    print(f"   Run: /lesson {txt_file}")
-    print(f"\n   This will:")
-    print(f"   • Analyze the lesson content with Claude Code")
-    print(f"   • Generate personalized email following Peggy's style")
-    print(f"   • Open the draft in Mail.app")
-    print("="*60 + "\n")
 
 if __name__ == '__main__':
     main()
