@@ -1,318 +1,116 @@
-# Lesson Summary Agent
+# Lesson Summary Agent (Skills Edition)
 
-An autonomous AI agent that automates your post-class workflow by generating personalized lesson summaries and emailing them to students with class materials.
+A lightweight, CLI-first workflow to automate post-class summaries using Claude Code skills. This project has evolved from a complex Python application into a streamlined set of specialized tools that handle video processing, transcription, and email generation.
 
-## Features
+## 🚀 Quick Start
 
-- 📄 **Transcript Processing**: Load from local files or Fireflies.ai
-- 🤖 **AI-Powered Summarization**: Uses Google Gemini or Claude to generate structured summaries
-- 🔍 **Smart Slide Retrieval**: Automatically finds relevant class slides from Google Drive
-- 📧 **Beautiful Emails**: Sends HTML-formatted summary emails via Gmail
-- 💻 **CLI & Web Interface**: Use from command line or browser
-- 🎯 **Flexible**: Works with or without student database
+This workflow is designed to be simple: **Video In → Email Out**.
 
-## Quick Start
+### Prerequisites
 
-### 1. Installation
+1.  **Claude Code**: Ensure you have the Claude CLI tool installed and authenticated.
+2.  **Dependencies**: The skills rely on a few Python packages and system tools:
+    ```bash
+    # Install Python dependencies
+    pip install faster-whisper
 
-```bash
-cd lesson-summary-agent
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+    # Install FFmpeg (required for video/audio processing)
+    # On macOS:
+    brew install ffmpeg
+    ```
 
-### 2. Configuration
+### The 2-Step Workflow
 
-```bash
-# Copy example config
-cp .env.example .env
-
-# Edit .env and add your API keys
-nano .env
-```
-
-Required variables:
-- `GOOGLE_API_KEY` or `ANTHROPIC_API_KEY` (choose your AI provider)
-- `GMAIL_SENDER_EMAIL` (your Gmail address)
-- `AI_MODEL` (e.g., `gemini-1.5-pro` or `claude-3-5-sonnet-20241022`)
-
-### 3. Google OAuth Setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Enable APIs:
-   - Gmail API
-   - Google Drive API
-4. Create OAuth 2.0 credentials (Desktop app)
-5. Download credentials and save as `credentials.json` in the project root
-
-### 4. Run Setup Wizard
+**Step 1: Process the Video**
+Use the `/lesson-summary` skill to convert your lesson recording into a transcript. This runs locally using `ffmpeg` and `faster-whisper`.
 
 ```bash
-python -m src.cli setup
+# Basic usage
+/lesson-summary <path_to_video.mp4> --to "Student Name"
+
+# Example
+/lesson-summary /Users/peggylin/Downloads/Lesson_0305.mp4 --to "Howard"
 ```
 
-This will:
-- Validate your configuration
-- Authenticate with Google (opens browser)
-- Create sample `students.json` database
-- Set up directory structure
+*What happens:*
+*   Extracts audio from the video (saves to `tmp/`).
+*   Transcribes audio to text using the local Whisper model.
+*   Saves the transcript to `tmp/<filename>.txt`.
+*   *(Optional)* Attempts to generate an email automatically if keys are configured, but **Step 2** is the recommended manual fallback for higher quality.
 
-### 5. Add Your Students
-
-Edit `students.json`:
-
-```json
-{
-  "students": [
-    {
-      "name": "John Doe",
-      "email": "john@example.com",
-      "level": "intermediate",
-      "preferred_language": "English",
-      "notes": "Focusing on business English"
-    }
-  ]
-}
-```
-
-### 6. Process Your First Lesson
-
-Create a transcript file:
+**Step 2: Generate & Review Email**
+Use the `/lesson` skill to have Claude read the transcript and write a personalized email following your specific style guide.
 
 ```bash
-# Filename format: YYYY-MM-DD_StudentName_Topic.txt
-echo "Today we discussed present perfect tense..." > transcripts/2026-01-05_JohnDoe_Grammar.txt
+/lesson tmp/<filename>.txt
 ```
 
-Process it:
+*What happens:*
+*   Claude reads the transcript and the `Master_EmailStyle_Guide.md`.
+*   It generates a structured, bilingual summary email (Traditional Chinese + English).
+*   You can review the output in the terminal.
 
-```bash
-python -m src.cli process transcripts/2026-01-05_JohnDoe_Grammar.txt
-```
+**Step 3: Send (Open in Mail.app)**
+Once you are happy with the text from Step 2, use the `send-email` script to open it directly in macOS Mail.
 
-## Usage
+1.  Copy the email text to a file (e.g., `email_draft.txt`).
+2.  Run:
+    ```bash
+    python3 .claude/skills/send-email/scripts/send_email.py "email_draft.txt" --type manual --to "Student Name" --subject "Lesson Summary"
+    ```
 
-### Command Line Interface
+---
 
-**Process a lesson:**
-```bash
-python -m src.cli process <transcript-file>
-python -m src.cli process transcripts/2026-01-05_JohnDoe_Grammar.txt --email john@example.com
-python -m src.cli process transcripts/2026-01-05_JohnDoe_Grammar.txt --draft
-```
+## 🛠️ Available Skills
 
-**Preview summary (no email):**
-```bash
-python -m src.cli preview transcripts/2026-01-05_JohnDoe_Grammar.txt
-```
+The system is built on these core skills located in `.claude/skills/`:
 
-**List students:**
-```bash
-python -m src.cli list-students
-```
+### `/lesson-summary`
+**The Orchestrator.** Chains together video conversion and transcription.
+*   **Input**: Video file (MP4, MOV, etc.)
+*   **Output**: MP3 audio and TXT transcript.
+*   **Key Flags**: `--model` (tiny/base/small/medium), `--to` (student name).
 
-**List Google Drive slides:**
-```bash
-python -m src.cli list-slides
-python -m src.cli list-slides --folder-id <your-folder-id>
-```
+### `/lesson`
+**The Writer.** A prompt-based skill that instructs Claude to act as your Teaching Assistant.
+*   **Context**: Reads `templates/Master_EmailStyle_Guide.md` to ensure consistent tone and formatting.
+*   **Input**: Transcript text file.
+*   **Output**: Formatted email text.
 
-**Setup wizard:**
-```bash
-python -m src.cli setup
-```
+### `/transcribe-audio`
+**The Ear.** Standalone wrapper for `faster-whisper`.
+*   **Use directly if**: You already have an audio file and just want text.
+*   **Command**: `/transcribe-audio <file.mp3> --model base`
 
-### Web Interface
+### `/send-email`
+**The Courier.** Python script to bridge the CLI and macOS Mail.
+*   **Function**: Creates a new draft in Mail.app with the subject, recipient, and body pre-filled.
 
-Launch the Gradio web app:
+---
 
-```bash
-python -m src.web_interface
-```
-
-Then open your browser to `http://localhost:7860`
-
-Features:
-- Drag-and-drop file upload
-- Preview summaries before sending
-- Visual feedback and formatted output
-
-## File Naming Convention
-
-Transcripts should follow this naming pattern:
-```
-YYYY-MM-DD_StudentName_LessonTopic.txt
-```
-
-Examples:
-- `2026-01-05_JohnDoe_GrammarLesson.txt`
-- `2026-01-05_MarySmith_ConversationPractice.txt`
-
-Alternative format (also supported):
-```
-StudentName_LessonTopic_YYYY-MM-DD.txt
-```
-
-## Project Structure
+## 📂 Project Structure
 
 ```
 lesson-summary-agent/
-├── src/
-│   ├── __init__.py
-│   ├── config.py              # Configuration management
-│   ├── models.py              # Pydantic data models
-│   ├── transcript_processor.py # Load and parse transcripts
-│   ├── summarizer.py          # AI summarization with LangChain
-│   ├── drive_client.py        # Google Drive integration
-│   ├── gmail_client.py        # Gmail email sending
-│   ├── agent.py               # Main workflow orchestrator
-│   ├── cli.py                 # Command-line interface
-│   └── web_interface.py       # Gradio web app
-├── transcripts/               # Place your transcript files here
-├── credentials.json           # Google OAuth credentials (you provide)
-├── token.json                 # Auto-generated after first auth
-├── students.json              # Student database
-├── .env                       # Your configuration (you create)
-├── .env.example               # Example configuration
-├── requirements.txt           # Python dependencies
-└── README.md                  # This file
+├── .claude/
+│   └── skills/              # The brain of the operation
+│       ├── lesson-summary/  # Video -> Transcript workflow
+│       ├── lesson/          # Transcript -> Email prompt
+│       ├── send-email/      # Email -> Mail.app script
+│       └── transcribe-audio/# Audio -> Text script
+├── templates/
+│   └── Master_EmailStyle_Guide.md  # The "Peggy Style" definition
+├── tmp/                     # Temporary artifacts (transcripts, audio)
+└── LEGACY_README.md         # Old documentation for the deprecated Python app
 ```
 
-## Advanced Usage
+## 📝 Configuration
 
-### Using Fireflies.ai Integration
+*   **Style Guide**: Edit `templates/Master_EmailStyle_Guide.md` to change how Claude writes your emails (tone, structure, bilingual rules).
+*   **Models**: The transcription defaults to `base`. Use `--model medium` or `--model large-v3` in `/lesson-summary` for higher accuracy (slower).
 
-If you record lessons with Fireflies:
+## ⚠️ Troubleshooting
 
-```bash
-# Set API key in .env
-FIREFLIES_API_KEY=your_key_here
-
-# Process by meeting ID
-python -m src.cli process fireflies:abc123xyz456
-```
-
-### Custom Slide Organization
-
-Set your Google Drive slides folder ID in `.env`:
-
-```bash
-SLIDES_FOLDER_ID=your_google_drive_folder_id_here
-```
-
-The agent will search within this folder for slides matching:
-- Student name
-- Lesson topic
-- Date
-
-### Programmatic Usage
-
-Use the agent in your own Python code:
-
-```python
-from src.agent import LessonSummaryAgent
-
-agent = LessonSummaryAgent()
-
-result = agent.process_lesson(
-    transcript_source="path/to/transcript.txt",
-    student_email="student@example.com",
-    create_draft=True,
-    sender_name="Your Name"
-)
-
-print(f"Email {result['email_status']} for {result['student']}")
-```
-
-### Switching AI Models
-
-Edit `.env`:
-
-```bash
-# Use Google Gemini
-AI_MODEL=gemini-1.5-pro
-GOOGLE_API_KEY=your_key
-
-# Or use Claude
-AI_MODEL=claude-3-5-sonnet-20241022
-ANTHROPIC_API_KEY=your_key
-```
-
-## Troubleshooting
-
-### "credentials.json not found"
-Download OAuth credentials from Google Cloud Console (see Setup step 3).
-
-### "No email found for student"
-Either:
-- Add student to `students.json`, or
-- Use `--email` flag: `python -m src.cli process transcript.txt --email student@example.com`
-
-### "Could not parse filename"
-Ensure transcript filename follows format: `YYYY-MM-DD_StudentName_Topic.txt`
-
-### "Gmail API error: insufficient permissions"
-Re-run setup to re-authenticate with correct scopes:
-```bash
-rm token.json
-python -m src.cli setup
-```
-
-### "No slides found"
-- Check `SLIDES_FOLDER_ID` in `.env`
-- Verify slide filenames contain student name or date
-- Use `lesson-agent list-slides` to see what's in your Drive folder
-
-## Cost Estimation
-
-Monthly costs (assuming 20 lessons/month):
-
-| Service | Cost |
-|---------|------|
-| Google Gemini 1.5 Pro API | ~$0.50 |
-| Anthropic Claude API | ~$2.00 |
-| Google Workspace APIs | Free |
-| **Total** | **$0.50 - $2.00/month** |
-
-## Security Notes
-
-- Never commit `.env`, `credentials.json`, or `token.json` to version control
-- Keep your API keys secure
-- Use OAuth for Google APIs (not service account keys)
-- Student database (`students.json`) contains email addresses - handle appropriately
-
-## Customization
-
-### Email Template
-
-Edit `src/gmail_client.py`, method `_format_html_body()` to customize the email design.
-
-### AI Prompt
-
-Edit `src/summarizer.py`, method `_create_prompt()` to adjust how summaries are generated.
-
-### Summary Structure
-
-Edit `src/models.py`, class `LessonSummary` to change summary fields.
-
-## Support
-
-For issues or questions:
-1. Check the troubleshooting section above
-2. Review configuration in `.env`
-3. Run setup wizard again: `python -m src.cli setup`
-
-## License
-
-MIT License - See LICENSE file for details
-
-## Acknowledgments
-
-Built with:
-- [LangChain](https://langchain.com/) - LLM orchestration
-- [Google Gemini](https://deepmind.google/technologies/gemini/) - AI summarization
-- [Gradio](https://gradio.app/) - Web interface
-- [Click](https://click.palletsprojects.com/) - CLI framework
-- [Rich](https://rich.readthedocs.io/) - Terminal formatting
+*   **"ffmpeg not found"**: Run `brew install ffmpeg`.
+*   **"faster-whisper module not found"**: Run `pip install faster-whisper`.
+*   **Mail.app doesn't open**: Ensure you are running on macOS and have granted Terminal accessibility permissions if prompted.

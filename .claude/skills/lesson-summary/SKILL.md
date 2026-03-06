@@ -177,6 +177,19 @@ Common issues:
 
 ## Advanced Usage
 
+**Manual Generation (if AI generation fails):**
+If the automated email generation fails (e.g., due to API errors), you can manually generate the content using Claude Code and then open it in Mail.app:
+
+1.  **Generate Content:**
+    ```bash
+    /lesson <path_to_transcript.txt>
+    ```
+2.  **Save Content:** Save the output to a file (e.g., `email_draft.txt`).
+3.  **Open in Mail.app:**
+    ```bash
+    python3 .claude/skills/send-email/scripts/send_email.py "email_draft.txt" --type manual --to "Student Name" --subject "Lesson Summary"
+    ```
+
 **Process and edit before sending:**
 ```bash
 # Run workflow but edit transcript first
