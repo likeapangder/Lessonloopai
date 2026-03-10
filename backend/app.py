@@ -1,10 +1,11 @@
 import os
+import subprocess
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import groq
-import anthropic
+import google.generativeai as genai
 
 # Load environment variables
 load_dotenv()
@@ -32,6 +33,7 @@ def process_lesson():
 
     file = request.files['file']
     student_name = request.form.get('student_name', 'Student')
+    student_email = request.form.get('student_email', '')
 
     # If user does not select file, browser also
     # submit an empty part without filename
@@ -44,6 +46,42 @@ def process_lesson():
         file.save(filepath)
 
         try:
+            # 0. Audio Compression using ffmpeg directly (subprocess)
+            # Export as mono-channel .mp3 with low bitrate to ensure <25MB
+            try:
+                # Create compressed filename
+                compressed_filename = f"compressed_{filename.rsplit('.', 1)[0]}.mp3"
+                compressed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], compressed_filename)
+
+                # Construct ffmpeg command
+                # -i input -ac 1 (mono) -b:a 32k (bitrate) -y (overwrite) output
+                command = [
+                    "ffmpeg",
+                    "-i", filepath,
+                    "-ac", "1",
+                    "-b:a", "32k",
+                    "-y",
+                    compressed_filepath
+                ]
+
+                # Run ffmpeg
+                result = subprocess.run(command, capture_output=True, text=True)
+
+                if result.returncode == 0 and os.path.exists(compressed_filepath):
+                    # Compression successful
+                    # Clean up original
+                    os.remove(filepath)
+                    filepath = compressed_filepath
+                    filename = compressed_filename
+                else:
+                    print(f"FFmpeg compression failed: {result.stderr}")
+                    # Continue with original file
+
+            except Exception as e:
+                # If compression fails (e.g. ffmpeg issue), log it but proceed with original
+                print(f"Compression failed: {e}")
+                # Keep using original filepath
+
             # 1. Transcription with Groq
             groq_client = groq.Groq(api_key=os.environ.get("GROQ_API_KEY"))
             with open(filepath, "rb") as file_stream:
@@ -53,8 +91,9 @@ def process_lesson():
                     response_format="text"
                 )
 
-            # 2. Summarization with Anthropic
-            anthropic_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+            # 2. Summarization with Gemini
+            genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+            model = genai.GenerativeModel("gemini-1.5-flash")
 
             # Read style guide
             try:
@@ -71,20 +110,13 @@ def process_lesson():
             {style_guide}
 
             Please write a summary email for student: {student_name}
+            Student Email Address: {student_email}
             Based on the following transcript:
             {transcription}
             """
 
-            message = anthropic_client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=1000,
-                temperature=0,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-
-            email_content = message.content[0].text
+            response = model.generate_content(prompt)
+            email_content = response.text
 
             # Clean up uploaded file
             os.remove(filepath)
@@ -104,4 +136,4 @@ def process_lesson():
     return jsonify({'error': 'File type not allowed'}), 400
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

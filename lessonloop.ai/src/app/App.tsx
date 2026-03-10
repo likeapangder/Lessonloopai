@@ -26,6 +26,7 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
   const [emailText, setEmailText] = useState(PLACEHOLDER_EMAIL);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -58,6 +59,7 @@ export default function App() {
     const formData = new FormData();
     formData.append('file', uploadedFile);
     formData.append('student_name', studentName);
+    formData.append('student_email', studentEmail);
 
     try {
       const response = await fetch('/api/process-lesson', {
@@ -89,7 +91,8 @@ export default function App() {
   const handleGmail = () => {
     const subject = encodeURIComponent(`Lesson Summary – ${studentName || "Student"}`);
     const body = encodeURIComponent(emailText);
-    window.open(`https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`, "_blank");
+    const to = studentEmail || "";
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`, "_blank");
   };
 
   return (
@@ -171,6 +174,16 @@ export default function App() {
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
               />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Student Email</label>
+              <input
+                type="email"
+                placeholder="e.g. parent@example.com"
+                value={studentEmail}
+                onChange={(e) => setStudentEmail(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+              />
+            </div>
           </div>
 
           {/* Generate Button */}
@@ -236,7 +249,7 @@ export default function App() {
               <div className="flex-1 flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
                 <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 <span className="text-xs text-gray-400 truncate">
-                  To: {studentName ? `${studentName.split(" ")[0].toLowerCase()}.parents@email.com` : "parents@email.com"}
+                  To: {studentEmail || (studentName ? `${studentName.split(" ")[0].toLowerCase()}.parents@email.com` : "parents@email.com")}
                 </span>
               </div>
               <div className="flex-1 hidden sm:flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
