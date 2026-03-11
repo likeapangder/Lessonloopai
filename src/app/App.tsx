@@ -94,7 +94,7 @@ export default function App() {
         <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col gap-5">
           <div>
             <h1 className="text-gray-900 mb-1" style={{ fontWeight: 700 }}>Create Lesson Summary</h1>
-            <p className="text-gray-500 text-sm">Upload a lesson recording and generate a personalised parent email in seconds.</p>
+            <p className="text-gray-500 text-sm">Upload a lesson recording and generate a personalised lesson summary email in seconds.</p>
           </div>
 
           {/* Drop Zone */}
@@ -153,7 +153,7 @@ export default function App() {
               <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Student Email</label>
               <input
                 type="email"
-                placeholder="e.g. parent@email.com"
+                placeholder="e.g. student@email.com"
                 value={studentEmail}
                 onChange={(e) => setStudentEmail(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -199,7 +199,6 @@ export default function App() {
             <ul className="mt-1.5 space-y-1 text-xs text-indigo-600">
               <li>• Upload clear audio for accurate transcription</li>
               <li>• Include student name for personalised emails</li>
-              <li>• Select the correct level for tailored language</li>
             </ul>
           </div>
         </div>
@@ -213,7 +212,7 @@ export default function App() {
         <div className="flex-1 flex flex-col gap-4 mt-4 lg:mt-0">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-gray-900" style={{ fontWeight: 700 }}>Parent Email Draft</h2>
+              <h2 className="text-gray-900" style={{ fontWeight: 700 }}>Email Draft</h2>
               <p className="text-gray-500 text-sm">Review and edit before sending.</p>
             </div>
             {isGenerating && (
