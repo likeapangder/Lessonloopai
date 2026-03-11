@@ -26,9 +26,11 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [studentName, setStudentName] = useState("");
-  const [level, setLevel] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
+  const [subject, setSubject] = useState("");
   const [emailText, setEmailText] = useState(PLACEHOLDER_EMAIL);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,8 +48,10 @@ export default function App() {
 
   const handleGenerate = () => {
     setIsGenerating(true);
+    setHasGenerated(false);
     setTimeout(() => {
       setIsGenerating(false);
+      setHasGenerated(true);
       setEmailText(
         `Hi ${studentName || "Student"},\n\nI hope this message finds you well! Here's a summary of today's session with ${studentName || "Student"}. ✅\n\n✅ Great Progress: ${studentName || "Student"} demonstrated strong comprehension of today's material and stayed focused throughout the lesson.\n\n✅ Key Topics Covered:\n  • Core vocabulary and concept review\n  • Guided practice exercises\n  • Critical thinking challenges\n\n✅ What Went Well: ${studentName || "The student"} showed real growth compared to previous sessions. Keep up the great work!\n\n📌 Homework for Next Time: Review today's notes and complete the assigned exercises. We'll check in at the start of our next lesson.\n\nLooking forward to continuing this progress. Please reach out with any questions!\n\nWarm regards,\nLessonLoop AI Assistant 🎓`
       );
@@ -61,9 +65,9 @@ export default function App() {
   };
 
   const handleGmail = () => {
-    const subject = encodeURIComponent(`Lesson Summary – ${studentName || "Student"}`);
+    const emailSubject = encodeURIComponent(subject || `Lesson Summary – ${studentName || "Student"}`);
     const body = encodeURIComponent(emailText);
-    window.open(`https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`, "_blank");
+    window.open(`https://mail.google.com/mail/?view=cm&su=${emailSubject}&body=${body}`, "_blank");
   };
 
   return (
@@ -146,12 +150,22 @@ export default function App() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Teacher Name</label>
+              <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Student Email</label>
+              <input
+                type="email"
+                placeholder="e.g. parent@email.com"
+                value={studentEmail}
+                onChange={(e) => setStudentEmail(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Subject</label>
               <input
                 type="text"
-                placeholder="e.g. Ms. Clarke"
-                value={level}
-                onChange={(e) => setLevel(e.target.value)}
+                placeholder="e.g. Lesson Summary – March 11"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
               />
             </div>
@@ -202,10 +216,18 @@ export default function App() {
               <h2 className="text-gray-900" style={{ fontWeight: 700 }}>Parent Email Draft</h2>
               <p className="text-gray-500 text-sm">Review and edit before sending.</p>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-xs text-green-700" style={{ fontWeight: 500 }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-              Ready to send
-            </span>
+            {isGenerating && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs text-amber-700" style={{ fontWeight: 500 }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-pulse" />
+                In process
+              </span>
+            )}
+            {!isGenerating && hasGenerated && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-xs text-green-700" style={{ fontWeight: 500 }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                Ready to send
+              </span>
+            )}
           </div>
 
           {/* Email Draft Card */}
@@ -220,11 +242,11 @@ export default function App() {
               <div className="flex-1 flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
                 <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 <span className="text-xs text-gray-400 truncate">
-                  To: {studentName ? `${studentName.split(" ")[0].toLowerCase()}.parents@email.com` : "parents@email.com"}
+                  To: {studentEmail || "parents@email.com"}
                 </span>
               </div>
               <div className="flex-1 hidden sm:flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
-                <span className="text-xs text-gray-400 truncate">Subject: Lesson Summary – {studentName || "Student"}</span>
+                <span className="text-xs text-gray-400 truncate">Subject: {subject || `Lesson Summary – ${studentName || "Student"}`}</span>
               </div>
             </div>
 
