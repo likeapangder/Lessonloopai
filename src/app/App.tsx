@@ -163,7 +163,7 @@ export default function App() {
               <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Subject</label>
               <input
                 type="text"
-                placeholder="e.g. Lesson Summary – March 11"
+                placeholder={`e.g. Lesson Summary – ${studentName || "Student"}`}
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -241,7 +241,7 @@ export default function App() {
               <div className="flex-1 flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
                 <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 <span className="text-xs text-gray-400 truncate">
-                  To: {studentEmail || "parents@email.com"}
+                  To: {studentEmail || "students@email.com"}
                 </span>
               </div>
               <div className="flex-1 hidden sm:flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
