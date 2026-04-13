@@ -27,7 +27,7 @@ export default function App() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
-  const [subject, setSubject] = useState("");
+  const [teacherName, setTeacherName] = useState("");
   const [emailText, setEmailText] = useState(PLACEHOLDER_EMAIL);
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
@@ -59,6 +59,7 @@ export default function App() {
     formData.append('file', uploadedFile);
     formData.append('student_name', studentName);
     formData.append('student_email', studentEmail);
+    formData.append('teacher_name', teacherName);
 
     try {
       // Use environment variable for API URL, fallback to localhost for development
@@ -91,7 +92,7 @@ export default function App() {
   };
 
   const handleGmail = () => {
-    const emailSubject = encodeURIComponent(subject || `Lesson Summary – ${studentName || "Student"}`);
+    const emailSubject = encodeURIComponent(`Lesson Summary – ${studentName || "Student"}`);
     const body = encodeURIComponent(emailText);
     window.open(`https://mail.google.com/mail/?view=cm&su=${emailSubject}&body=${body}`, "_blank");
   };
@@ -186,12 +187,12 @@ export default function App() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Subject</label>
+              <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Teacher Name</label>
               <input
                 type="text"
-                placeholder={`e.g. Lesson Summary – ${studentName || "Student"}`}
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
+                placeholder="e.g. Ms. Davis"
+                value={teacherName}
+                onChange={(e) => setTeacherName(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
               />
             </div>
@@ -271,7 +272,7 @@ export default function App() {
                 </span>
               </div>
               <div className="flex-1 hidden sm:flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
-                <span className="text-xs text-gray-400 truncate">Subject: {subject || `Lesson Summary – ${studentName || "Student"}`}</span>
+                <span className="text-xs text-gray-400 truncate">Subject: Lesson Summary – {studentName || "Student"}</span>
               </div>
             </div>
 

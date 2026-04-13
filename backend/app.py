@@ -41,6 +41,7 @@ def process_lesson():
     file = request.files['file']
     student_name = request.form.get('student_name', 'Student')
     student_email = request.form.get('student_email', '')
+    teacher_name = request.form.get('teacher_name', 'Teacher')
 
     # If user does not select file, browser also
     # submit an empty part without filename
@@ -133,6 +134,7 @@ def process_lesson():
                 prompt = f"""
                 Student Name: {student_name}
                 Student Email: {student_email}
+                Teacher Name: {teacher_name}
 
                 TRANSCRIPT:
                 {transcription}
@@ -177,7 +179,7 @@ STYLE GUIDE:
                             },
                             {
                                 "role": "user",
-                                "content": f"Please write a summary email for student: {student_name}\nStudent Email Address: {student_email}\n\nBased on the following transcript:\n{transcription}"
+                                "content": f"Please write a summary email for student: {student_name}\nStudent Email Address: {student_email}\nTeacher Name: {teacher_name}\n\nBased on the following transcript:\n{transcription}"
                             }
                         ],
                         temperature=0.7,
