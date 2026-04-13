@@ -76,7 +76,7 @@ The skill automatically performs these steps:
 
 **Custom subject:**
 ```
-/lesson-summary lesson.mp4 --to "Siyu" --subject "今日英語課程總結"
+/lesson-summary lesson.mp4 --to "Siyu" --subject "Lesson with Peggy"
 ```
 
 ## Output

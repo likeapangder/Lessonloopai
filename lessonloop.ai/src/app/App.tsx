@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Sparkles, Copy, Mail, Settings, Upload, CheckCircle2 } from "lucide-react";
+import { Sparkles, Copy, Mail, Settings, Upload, CheckCircle2, GripVertical } from "lucide-react";
 
 const PLACEHOLDER_EMAIL = `Hi [Student Name],
 
@@ -27,8 +27,10 @@ export default function App() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
+  const [subject, setSubject] = useState("");
   const [emailText, setEmailText] = useState(PLACEHOLDER_EMAIL);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -36,16 +38,12 @@ export default function App() {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file) {
-      setUploadedFile(file);
-    }
+    if (file) setUploadedFile(file);
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
-    }
+    if (file) setUploadedFile(file);
   };
 
   const handleGenerate = async () => {
@@ -55,6 +53,7 @@ export default function App() {
     }
 
     setIsGenerating(true);
+    setHasGenerated(false);
 
     const formData = new FormData();
     formData.append('file', uploadedFile);
@@ -62,7 +61,9 @@ export default function App() {
     formData.append('student_email', studentEmail);
 
     try {
-      const response = await fetch('/api/process-lesson', {
+      // Use environment variable for API URL, fallback to localhost for development
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
+      const response = await fetch(`${apiUrl}/api/process-lesson`, {
         method: 'POST',
         body: formData,
       });
@@ -74,6 +75,7 @@ export default function App() {
 
       const data = await response.json();
       setEmailText(data.email);
+      setHasGenerated(true);
     } catch (error) {
       console.error("Error generating summary:", error);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -89,10 +91,9 @@ export default function App() {
   };
 
   const handleGmail = () => {
-    const subject = encodeURIComponent(`Lesson Summary – ${studentName || "Student"}`);
+    const emailSubject = encodeURIComponent(subject || `Lesson Summary – ${studentName || "Student"}`);
     const body = encodeURIComponent(emailText);
-    const to = studentEmail || "";
-    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`, "_blank");
+    window.open(`https://mail.google.com/mail/?view=cm&su=${emailSubject}&body=${body}`, "_blank");
   };
 
   return (
@@ -119,7 +120,7 @@ export default function App() {
         <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col gap-5">
           <div>
             <h1 className="text-gray-900 mb-1" style={{ fontWeight: 700 }}>Create Lesson Summary</h1>
-            <p className="text-gray-500 text-sm">Upload a lesson recording and generate a personalised parent email in seconds.</p>
+            <p className="text-gray-500 text-sm">Upload a lesson recording and generate a personalised lesson summary email in seconds.</p>
           </div>
 
           {/* Drop Zone */}
@@ -168,7 +169,7 @@ export default function App() {
               <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Student Name</label>
               <input
                 type="text"
-                placeholder="e.g. Emily Chen"
+                placeholder="e.g. Sarah Johnson"
                 value={studentName}
                 onChange={(e) => setStudentName(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -178,9 +179,19 @@ export default function App() {
               <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Student Email</label>
               <input
                 type="email"
-                placeholder="e.g. student@example.com"
+                placeholder="e.g. student@email.com"
                 value={studentEmail}
                 onChange={(e) => setStudentEmail(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-gray-600" style={{ fontWeight: 500 }}>Subject</label>
+              <input
+                type="text"
+                placeholder={`e.g. Lesson Summary – ${studentName || "Student"}`}
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
               />
             </div>
@@ -214,7 +225,6 @@ export default function App() {
             <ul className="mt-1.5 space-y-1 text-xs text-indigo-600">
               <li>• Upload clear audio for accurate transcription</li>
               <li>• Include student name for personalised emails</li>
-              <li>• Select the correct level for tailored language</li>
             </ul>
           </div>
         </div>
@@ -231,10 +241,18 @@ export default function App() {
               <h2 className="text-gray-900" style={{ fontWeight: 700 }}>Email Draft</h2>
               <p className="text-gray-500 text-sm">Review and edit before sending.</p>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-xs text-green-700" style={{ fontWeight: 500 }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-              Ready to send
-            </span>
+            {isGenerating && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs text-amber-700" style={{ fontWeight: 500 }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-pulse" />
+                In process
+              </span>
+            )}
+            {!isGenerating && hasGenerated && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-xs text-green-700" style={{ fontWeight: 500 }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                Ready to send
+              </span>
+            )}
           </div>
 
           {/* Email Draft Card */}
@@ -249,11 +267,11 @@ export default function App() {
               <div className="flex-1 flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
                 <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 <span className="text-xs text-gray-400 truncate">
-                  To: {studentEmail || (studentName ? `${studentName.split(" ")[0].toLowerCase()}@email.com` : "student@email.com")}
+                  To: {studentEmail || "students@email.com"}
                 </span>
               </div>
               <div className="flex-1 hidden sm:flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1.5">
-                <span className="text-xs text-gray-400 truncate">Subject: Lesson Summary – {studentName || "Student"}</span>
+                <span className="text-xs text-gray-400 truncate">Subject: {subject || `Lesson Summary – ${studentName || "Student"}`}</span>
               </div>
             </div>
 

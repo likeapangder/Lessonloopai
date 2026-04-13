@@ -5,12 +5,15 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import groq
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+# Increase max upload size to 100MB
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 CORS(app)
 
 # Configuration
@@ -20,6 +23,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+@app.route('/')
+def index():
+    return jsonify({"status": "healthy", "message": "LessonLoop API is running"})
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -44,6 +51,10 @@ def process_lesson():
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
+
+        # Log file size
+        file_size = os.path.getsize(filepath)
+        print(f"File uploaded: {filename}, Size: {file_size} bytes")
 
         try:
             # 0. Audio Compression using ffmpeg directly (subprocess)
@@ -93,29 +104,65 @@ def process_lesson():
                         response_format="text"
                     )
                 print("Groq transcription complete.")
+                print(f"Transcript Preview (500 chars):\n{transcription[:500]}")
             except Exception as e:
                 print(f"Groq API Error: {e}")
                 raise e
 
-            # 2. Summarization with Groq
-            print("Starting Groq summarization...")
+            # 2. Summarization with Gemini (Using Peggy Style)
+            print("Starting Gemini summarization...")
             try:
+                gemini_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
                 # Read style guide
                 try:
-                    # Use absolute path to ensure it works regardless of CWD
                     current_dir = os.path.dirname(os.path.abspath(__file__))
                     style_guide_path = os.path.join(current_dir, '..', 'templates', 'Master_EmailStyle_Guide.md')
-                    with open(style_guide_path, 'r') as f:
-                        style_guide = f.read()
+                    if os.path.exists(style_guide_path):
+                        print(f"Loading style guide from: {style_guide_path}")
+                        with open(style_guide_path, 'r') as f:
+                            style_guide = f.read()
+                        print(f"Style guide loaded (length: {len(style_guide)} chars)")
+                    else:
+                         print(f"Warning: Style guide NOT found at {style_guide_path}")
+                         raise FileNotFoundError
                 except FileNotFoundError:
-                    style_guide = "Write a professional summary email."
+                    style_guide = "Act as Peggy's Executive Teaching Assistant. Write a professional lesson summary."
 
-                response = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": f"""You are Peggy's Executive Teaching Assistant.
+                # Prompt contains ONLY the student info and transcript
+                prompt = f"""
+                Student Name: {student_name}
+                Student Email: {student_email}
+
+                TRANSCRIPT:
+                {transcription}
+                """
+
+                # Generate content using the new client syntax
+                response = gemini_client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(
+                        system_instruction=style_guide,
+                        temperature=0.7
+                    )
+                )
+
+                email_content = response.text
+                print("Gemini summarization complete.")
+            except Exception as e:
+                print(f"Gemini Summarization Error: {e}")
+                # Fallback to Groq if Gemini fails
+                print("Falling back to Groq for summarization...")
+                try:
+                    groq_client = groq.Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+                    response = groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": f"""You are Peggy's Executive Teaching Assistant.
 Your task is to write a lesson summary email for a student based on the provided transcript.
 
 CRITICAL INSTRUCTIONS:
@@ -127,23 +174,20 @@ CRITICAL INSTRUCTIONS:
 STYLE GUIDE:
 {style_guide}
 """
-                        },
-                        {
-                            "role": "user",
-                            "content": f"Please write a summary email for student: {student_name}\nStudent Email Address: {student_email}\n\nBased on the following transcript:\n{transcription}"
-                        }
-                    ],
-                    temperature=0.5,
-                    max_tokens=2048,
-                    top_p=1,
-                    stop=None,
-                    stream=False,
-                )
-                email_content = response.choices[0].message.content
-                print("Groq summarization complete.")
-            except Exception as e:
-                print(f"Groq Summarization Error: {e}")
-                raise e
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Please write a summary email for student: {student_name}\nStudent Email Address: {student_email}\n\nBased on the following transcript:\n{transcription}"
+                            }
+                        ],
+                        temperature=0.7,
+                        max_tokens=2048
+                    )
+                    email_content = response.choices[0].message.content
+                    print("Groq summarization complete (fallback).")
+                except Exception as groq_e:
+                    print(f"Groq Summarization Error: {groq_e}")
+                    raise e
 
             # Clean up uploaded file
             os.remove(filepath)
