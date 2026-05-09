@@ -1,3 +1,4 @@
+from flask_cors import CORS
 import os
 import json
 import logging
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
+CORS(app)
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
