@@ -6,8 +6,7 @@ from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from groq import Groq
-from google import genai
-from google.genai import types
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -40,23 +39,6 @@ def index():
 
 @app.route('/api/process-lesson', methods=['POST'])
 def process_lesson():
-    # Initialize clients PER REQUEST so we can see exact errors
-    try:
-        groq_api_key = os.environ.get("GROQ_API_KEY")
-        google_api_key = os.environ.get("GOOGLE_API_KEY")
-        
-        if not groq_api_key:
-            return jsonify({'error': 'GROQ_API_KEY is not set on the server.'}), 500
-        if not google_api_key:
-            return jsonify({'error': 'GOOGLE_API_KEY is not set on the server.'}), 500
-
-        groq_client = Groq(api_key=groq_api_key)
-        # Google's newer genai library sometimes throws proxy errors when passing kwargs
-        # So we just rely on it picking up the GOOGLE_API_KEY from the OS environment automatically
-        gemini_client = genai.Client()
-    except Exception as e:
-        return jsonify({'error': f'Failed to initialize API clients: {str(e)}'}), 500
-
     # check if the post request has the file part
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -77,7 +59,12 @@ def process_lesson():
 
         try:
             # Step 1: Transcribe with Groq (Whisper)
+            groq_api_key = os.environ.get("GROQ_API_KEY")
+            if not groq_api_key:
+                return jsonify({'error': 'GROQ_API_KEY is not set on the server.'}), 500
+            
             logger.info(f"Transcribing file: {filename}")
+            groq_client = Groq(api_key=groq_api_key)
             with open(filepath, "rb") as file_obj:
                 transcription = groq_client.audio.transcriptions.create(
                     file=(filename, file_obj.read()),
@@ -85,8 +72,12 @@ def process_lesson():
                     response_format="text"
                 )
 
-            # Step 2: Generate email with Google Gemini
-            logger.info("Generating email draft with Gemini")
+            # Step 2: Generate email with Google Gemini via REST API
+            logger.info("Generating email draft with Gemini REST API")
+            
+            google_api_key = os.environ.get("GOOGLE_API_KEY")
+            if not google_api_key:
+                return jsonify({'error': 'GOOGLE_API_KEY is not set on the server.'}), 500
 
             # Load style guide
             style_guide = ""
@@ -98,24 +89,41 @@ def process_lesson():
             except FileNotFoundError:
                 style_guide = "Please write a summary email for the lesson. Act as an expert teaching assistant."
 
+            transcript_text = transcription.text if hasattr(transcription, 'text') else transcription
+
             prompt = f"""
             Student Name: {student_name}
             Teacher Name: {teacher_name}
 
             TRANSCRIPT:
-            {transcription.text if hasattr(transcription, 'text') else transcription}
+            {transcript_text}
             """
 
-            response = gemini_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=[prompt],
-                config=types.GenerateContentConfig(
-                    system_instruction=style_guide,
-                    temperature=0.7
-                )
-            )
-
-            email_content = response.text
+            # Use REST API directly to avoid google-genai library bugs
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={google_api_key}"
+            
+            payload = {
+                "system_instruction": {
+                    "parts": [{"text": style_guide}]
+                },
+                "contents": [
+                    {"parts": [{"text": prompt}]}
+                ],
+                "generationConfig": {
+                    "temperature": 0.7
+                }
+            }
+            
+            headers = {"Content-Type": "application/json"}
+            
+            response = requests.post(url, json=payload, headers=headers)
+            
+            if not response.ok:
+                error_msg = response.json().get('error', {}).get('message', response.text)
+                raise Exception(f"Gemini API Error: {error_msg}")
+                
+            response_data = response.json()
+            email_content = response_data['candidates'][0]['content']['parts'][0]['text']
 
             # Clean up uploaded file
             os.remove(filepath)
@@ -123,7 +131,7 @@ def process_lesson():
             return jsonify({
                 'success': True,
                 'email': email_content,
-                'transcript_preview': str(transcription.text if hasattr(transcription, 'text') else transcription)[:500] + "..."
+                'transcript_preview': str(transcript_text)[:500] + "..."
             })
 
         except Exception as e:
