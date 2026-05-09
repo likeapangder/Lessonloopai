@@ -1,116 +1,83 @@
-# Lesson Summary Agent (Skills Edition)
+# LessonLoop AI
 
-A lightweight, CLI-first workflow to automate post-class summaries using Claude Code skills. This project has evolved from a complex Python application into a streamlined set of specialized tools that handle video processing, transcription, and email generation.
+LessonLoop AI is an automated teaching assistant tool that transcribes lesson recordings and generates personalized, structured lesson summary emails for students using AI.
 
-## 🚀 Quick Start
+## Architecture
 
-This workflow is designed to be simple: **Video In → Email Out**.
+The project is split into a separated frontend and backend to allow for scalable deployment:
 
-### Prerequisites
+*   **Frontend (`lessonloop.ai/`):** A modern React application built with Vite, TypeScript, Tailwind CSS, and Radix UI components. It provides a clean drag-and-drop interface for teachers. Deployed on **Vercel**.
+*   **Backend (`backend/`):** A Flask Python server that handles the heavy lifting. It processes audio/video uploads, uses **Groq (Whisper-large-v3)** for lightning-fast transcription, and uses **Anthropic (Claude 3.5 Sonnet)** to generate the final lesson summary based on a customizable style guide. Deployed on **Render** via Docker.
 
-1.  **Claude Code**: Ensure you have the Claude CLI tool installed and authenticated.
-2.  **Dependencies**: The skills rely on a few Python packages and system tools:
-    ```bash
-    # Install Python dependencies
-    pip install faster-whisper
+## Features
 
-    # Install FFmpeg (required for video/audio processing)
-    # On macOS:
-    brew install ffmpeg
-    ```
+*   **Drag & Drop Upload:** Supports audio and video formats (MP4, MP3, WAV, M4A, WEBM, etc.).
+*   **Fast Transcription:** Utilizes Groq's Whisper API to transcribe audio in seconds.
+*   **Intelligent Summarization:** Claude 3.5 Sonnet generates structured emails (in Traditional Chinese/English) following a specific pedagogical style guide.
+*   **1-Click Actions:** Copy the generated email to clipboard or immediately open a pre-filled Gmail draft.
 
-### The 2-Step Workflow
+## Local Development Setup
 
-**Step 1: Process the Video**
-Use the `/lesson-summary` skill to convert your lesson recording into a transcript. This runs locally using `ffmpeg` and `faster-whisper`.
+### 1. Backend Setup
 
 ```bash
-# Basic usage
-/lesson-summary <path_to_video.mp4> --to "Student Name"
-
-# Example
-/lesson-summary /Users/peggylin/Downloads/Lesson_0305.mp4 --to "Howard"
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows use: venv\Scripts\activate
+pip install -r ../requirements.txt
 ```
 
-*What happens:*
-*   Extracts audio from the video (saves to `tmp/`).
-*   Transcribes audio to text using the local Whisper model.
-*   Saves the transcript to `tmp/<filename>.txt`.
-*   *(Optional)* Attempts to generate an email automatically if keys are configured, but **Step 2** is the recommended manual fallback for higher quality.
+Create a `.env` file in the root directory with your API keys:
+```
+GROQ_API_KEY=your_groq_key
+ANTHROPIC_API_KEY=your_anthropic_key
+FLASK_ENV=development
+```
 
-**Step 2: Generate & Review Email**
-Use the `/lesson` skill to have Claude read the transcript and write a personalized email following your specific style guide.
-
+Start the Flask server:
 ```bash
-/lesson tmp/<filename>.txt
+flask run --port 5001
 ```
 
-*What happens:*
-*   Claude reads the transcript and the `Master_EmailStyle_Guide.md`.
-*   It generates a structured, bilingual summary email (Traditional Chinese + English).
-*   You can review the output in the terminal.
+### 2. Frontend Setup
 
-**Step 3: Send (Open in Mail.app)**
-Once you are happy with the text from Step 2, use the `send-email` script to open it directly in macOS Mail.
-
-1.  Copy the email text to a file (e.g., `email_draft.txt`).
-2.  Run:
-    ```bash
-    python3 .claude/skills/send-email/scripts/send_email.py "email_draft.txt" --type manual --to "Student Name" --subject "Lesson Summary"
-    ```
-
----
-
-## 🛠️ Available Skills
-
-The system is built on these core skills located in `.claude/skills/`:
-
-### `/lesson-summary`
-**The Orchestrator.** Chains together video conversion and transcription.
-*   **Input**: Video file (MP4, MOV, etc.)
-*   **Output**: MP3 audio and TXT transcript.
-*   **Key Flags**: `--model` (tiny/base/small/medium), `--to` (student name).
-
-### `/lesson`
-**The Writer.** A prompt-based skill that instructs Claude to act as your Teaching Assistant.
-*   **Context**: Reads `templates/Master_EmailStyle_Guide.md` to ensure consistent tone and formatting.
-*   **Input**: Transcript text file.
-*   **Output**: Formatted email text.
-
-### `/transcribe-audio`
-**The Ear.** Standalone wrapper for `faster-whisper`.
-*   **Use directly if**: You already have an audio file and just want text.
-*   **Command**: `/transcribe-audio <file.mp3> --model base`
-
-### `/send-email`
-**The Courier.** Python script to bridge the CLI and macOS Mail.
-*   **Function**: Creates a new draft in Mail.app with the subject, recipient, and body pre-filled.
-
----
-
-## 📂 Project Structure
-
-```
-lesson-summary-agent/
-├── .claude/
-│   └── skills/              # The brain of the operation
-│       ├── lesson-summary/  # Video -> Transcript workflow
-│       ├── lesson/          # Transcript -> Email prompt
-│       ├── send-email/      # Email -> Mail.app script
-│       └── transcribe-audio/# Audio -> Text script
-├── templates/
-│   └── Master_EmailStyle_Guide.md  # The "Peggy Style" definition
-├── tmp/                     # Temporary artifacts (transcripts, audio)
-└── LEGACY_README.md         # Old documentation for the deprecated Python app
+In a new terminal window:
+```bash
+cd lessonloop.ai
+npm install
 ```
 
-## 📝 Configuration
+Create a `.env` file inside the `lessonloop.ai` folder (optional for local dev, defaults to localhost):
+```
+VITE_API_URL=http://127.0.0.1:5001
+```
 
-*   **Style Guide**: Edit `templates/Master_EmailStyle_Guide.md` to change how Claude writes your emails (tone, structure, bilingual rules).
-*   **Models**: The transcription defaults to `base`. Use `--model medium` or `--model large-v3` in `/lesson-summary` for higher accuracy (slower).
+Start the Vite development server:
+```bash
+npm run dev
+```
 
-## ⚠️ Troubleshooting
+## Deployment Instructions
 
-*   **"ffmpeg not found"**: Run `brew install ffmpeg`.
-*   **"faster-whisper module not found"**: Run `pip install faster-whisper`.
-*   **Mail.app doesn't open**: Ensure you are running on macOS and have granted Terminal accessibility permissions if prompted.
+### Deploying the Backend (Render)
+
+1. Create a new **Web Service** on Render.
+2. Connect your GitHub repository.
+3. Select **Docker** as the environment (Render will automatically read the `Dockerfile` in the root).
+4. Add the following Environment Variables in the Render dashboard:
+   * `GROQ_API_KEY`: (your key)
+   * `ANTHROPIC_API_KEY`: (your key)
+   * `FLASK_ENV`: `production`
+5. Deploy. Render will automatically install system dependencies like `ffmpeg` and run the app using `gunicorn`.
+
+### Deploying the Frontend (Vercel)
+
+1. Import the repository into Vercel.
+2. Under **Project Settings > General**, set the **Root Directory** to `lessonloop.ai`.
+3. Under **Project Settings > Environment Variables**, add:
+   * `VITE_API_URL`: `https://your-render-backend-url.onrender.com` (Ensure there is no trailing slash).
+4. Deploy the project.
+
+## Customizing the Email Style
+
+You can modify the tone, structure, and language of the generated emails by editing the `backend/templates/Master_EmailStyle_Guide.md` file. Claude will read this file during generation and strictly adhere to its formatting rules.
