@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LessonLoop AI - Teaching Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Add FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-infinity"></i> LessonLoop AI
+            </div>
+            <div class="user-profile">
+                <span class="avatar">T</span>
+                <span class="teacher-label">Teacher Dashboard</span>
+            </div>
+        </header>
+
+        <!-- Main Content (Split Screen) -->
+        <main class="main-content">
+            <!-- Left Column: Input -->
+            <section class="input-section">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-wand-magic-sparkles"></i> New Lesson Summary</h2>
+                    <p>Upload your recording to generate a structured email.</p>
+                </div>
+
+                <form id="lessonForm" class="lesson-form">
+                    <div class="form-group">
+                        <label for="studentName">Student Name</label>
+                        <input type="text" id="studentName" name="student_name" placeholder="e.g. Alice" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="teacherName">Teacher Name</label>
+                        <input type="text" id="teacherName" name="teacher_name" placeholder="e.g. Peggy" value="Peggy" required>
+                    </div>
+
+                    <div class="form-group file-upload-group">
+                        <label>Lesson Recording</label>
+                        <div class="drop-zone" id="dropZone">
+                            <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                            <p class="drop-text">Drag & drop audio/video here</p>
+                            <p class="drop-subtext">or click to browse files</p>
+                            <input type="file" id="fileInput" name="file" accept=".mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm" required hidden>
+                            <div class="file-preview" id="filePreview" style="display: none;">
+                                <i class="fa-solid fa-file-audio"></i>
+                                <span id="fileName">filename.mp3</span>
+                                <button type="button" class="remove-file" id="removeFile"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="generate-btn" id="generateBtn">
+                        <span class="btn-text">Generate Lesson Summary</span>
+                        <span class="loader" style="display: none;"></span>
+                    </button>
+                </form>
+
+                <div class="status-message" id="statusMessage" style="display: none;"></div>
+            </section>
+
+            <!-- Right Column: Output -->
+            <section class="output-section">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-envelope-open-text"></i> Generated Email</h2>
+                    <div class="actions">
+                        <button class="action-btn secondary" id="copyBtn" disabled>
+                            <i class="fa-regular fa-copy"></i> Copy
+                        </button>
+                        <button class="action-btn primary" id="gmailBtn" disabled>
+                            <i class="fa-brands fa-google"></i> Open in Gmail
+                        </button>
+                    </div>
+                </div>
+
+                <div class="email-preview-container">
+                    <div class="empty-state" id="emptyState">
+                        <img src="https://illustrations.popsy.co/amber/surr-waiting.svg" alt="Waiting for input" class="empty-img">
+                        <h3>Ready to Generate</h3>
+                        <p>Upload a lesson recording to see the magic happen.</p>
+                    </div>
+                    <textarea id="emailOutput" class="email-textarea" readonly style="display: none;"></textarea>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
