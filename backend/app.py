@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+# More permissive CORS specifically for the API route
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
@@ -29,13 +30,26 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Initialize API clients
+# Don't fail the whole app if API keys are missing on startup
 try:
-    groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-    # Note: google-genai reads GOOGLE_API_KEY directly from env
-    gemini_client = genai.Client()
+    groq_api_key = os.environ.get("GROQ_API_KEY")
+    if groq_api_key:
+        groq_client = Groq(api_key=groq_api_key)
+    else:
+        logger.warning("GROQ_API_KEY not found in environment")
+        groq_client = None
+
+    google_api_key = os.environ.get("GOOGLE_API_KEY")
+    if google_api_key:
+        # Pass key explicitly to avoid generic genai errors if env var is weird
+        gemini_client = genai.Client(api_key=google_api_key)
+    else:
+        logger.warning("GOOGLE_API_KEY not found in environment")
+        gemini_client = None
 except Exception as e:
     logger.error(f"Failed to initialize API clients: {e}")
+    groq_client = None
+    gemini_client = None
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -47,6 +61,10 @@ def index():
 
 @app.route('/api/process-lesson', methods=['POST'])
 def process_lesson():
+    # If clients didn't initialize, return a clear 500 error immediately
+    if not groq_client or not gemini_client:
+        return jsonify({'error': 'API keys are missing or invalid on the server.'}), 500
+
     # check if the post request has the file part
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
