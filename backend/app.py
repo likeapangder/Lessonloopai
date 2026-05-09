@@ -30,27 +30,6 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Don't fail the whole app if API keys are missing on startup
-try:
-    groq_api_key = os.environ.get("GROQ_API_KEY")
-    if groq_api_key:
-        groq_client = Groq(api_key=groq_api_key)
-    else:
-        logger.warning("GROQ_API_KEY not found in environment")
-        groq_client = None
-
-    google_api_key = os.environ.get("GOOGLE_API_KEY")
-    if google_api_key:
-        # Pass key explicitly to avoid generic genai errors if env var is weird
-        gemini_client = genai.Client(api_key=google_api_key)
-    else:
-        logger.warning("GOOGLE_API_KEY not found in environment")
-        gemini_client = None
-except Exception as e:
-    logger.error(f"Failed to initialize API clients: {e}")
-    groq_client = None
-    gemini_client = None
-
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -61,9 +40,20 @@ def index():
 
 @app.route('/api/process-lesson', methods=['POST'])
 def process_lesson():
-    # If clients didn't initialize, return a clear 500 error immediately
-    if not groq_client or not gemini_client:
-        return jsonify({'error': 'API keys are missing or invalid on the server.'}), 500
+    # Initialize clients PER REQUEST so we can see exact errors
+    try:
+        groq_api_key = os.environ.get("GROQ_API_KEY")
+        google_api_key = os.environ.get("GOOGLE_API_KEY")
+        
+        if not groq_api_key:
+            return jsonify({'error': 'GROQ_API_KEY is not set on the server.'}), 500
+        if not google_api_key:
+            return jsonify({'error': 'GOOGLE_API_KEY is not set on the server.'}), 500
+
+        groq_client = Groq(api_key=groq_api_key)
+        gemini_client = genai.Client(api_key=google_api_key)
+    except Exception as e:
+        return jsonify({'error': f'Failed to initialize API clients: {str(e)}'}), 500
 
     # check if the post request has the file part
     if 'file' not in request.files:
@@ -99,13 +89,11 @@ def process_lesson():
             # Load style guide
             style_guide = ""
             try:
-                # Need to use absolute path or relative from backend/
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 style_guide_path = os.path.join(current_dir, 'templates', 'Master_EmailStyle_Guide.md')
                 with open(style_guide_path, 'r') as f:
                     style_guide = f.read()
             except FileNotFoundError:
-                logger.warning("Style guide not found, using default prompt")
                 style_guide = "Please write a summary email for the lesson. Act as an expert teaching assistant."
 
             prompt = f"""
@@ -113,7 +101,7 @@ def process_lesson():
             Teacher Name: {teacher_name}
 
             TRANSCRIPT:
-            {transcription}
+            {transcription.text if hasattr(transcription, 'text') else transcription}
             """
 
             response = gemini_client.models.generate_content(
@@ -133,15 +121,14 @@ def process_lesson():
             return jsonify({
                 'success': True,
                 'email': email_content,
-                'transcript_preview': str(transcription)[:500] + "..."
+                'transcript_preview': str(transcription.text if hasattr(transcription, 'text') else transcription)[:500] + "..."
             })
 
         except Exception as e:
             logger.error(f"Error processing lesson: {e}")
-            # Clean up file in case of error
             if os.path.exists(filepath):
                 os.remove(filepath)
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': f'Processing Error: {str(e)}'}), 500
 
     return jsonify({'error': 'File type not allowed'}), 400
 
