@@ -51,7 +51,9 @@ def process_lesson():
             return jsonify({'error': 'GOOGLE_API_KEY is not set on the server.'}), 500
 
         groq_client = Groq(api_key=groq_api_key)
-        gemini_client = genai.Client(api_key=google_api_key)
+        # Google's newer genai library sometimes throws proxy errors when passing kwargs
+        # So we just rely on it picking up the GOOGLE_API_KEY from the OS environment automatically
+        gemini_client = genai.Client()
     except Exception as e:
         return jsonify({'error': f'Failed to initialize API clients: {str(e)}'}), 500
 
