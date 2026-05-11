@@ -8,6 +8,7 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from groq import Groq
 import requests
+import time
 
 # Load environment variables
 load_dotenv()
@@ -90,7 +91,7 @@ def process_lesson():
             
             logger.info(f"Transcribing file: {filename}")
             
-            # Using REST API for Groq directly to bypass ANY library proxy bugs
+            # Using REST API for Groq directly
             url = "https://api.groq.com/openai/v1/audio/transcriptions"
             headers = {"Authorization": f"Bearer {groq_api_key}"}
             
@@ -133,26 +134,32 @@ def process_lesson():
             {transcript_text}
             """
 
-            # Use REST API directly to avoid google-genai library bugs
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={google_api_key}"
-            
             payload = {
-                "system_instruction": {
-                    "parts": [{"text": style_guide}]
-                },
-                "contents": [
-                    {"parts": [{"text": prompt}]}
-                ],
-                "generationConfig": {
-                    "temperature": 0.7
-                }
+                "system_instruction": {"parts": [{"text": style_guide}]},
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.7}
             }
-            
             headers = {"Content-Type": "application/json"}
             
-            gemini_response = requests.post(url, json=payload, headers=headers)
+            # Add simple retry logic for Gemini "High Demand" errors (503)
+            max_retries = 3
+            retry_delay = 2 # seconds
             
-            if not gemini_response.ok:
+            for attempt in range(max_retries):
+                gemini_response = requests.post(url, json=payload, headers=headers)
+                
+                if gemini_response.ok:
+                    break
+                    
+                # If it's a 503 Service Unavailable (High Demand), wait and try again
+                if gemini_response.status_code == 503 and attempt < max_retries - 1:
+                    logger.warning(f"Gemini API overloaded. Retrying in {retry_delay}s... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2 # Exponential backoff (2s, 4s)
+                    continue
+                    
+                # If we exhausted retries or it's a different error, raise it
                 error_msg = gemini_response.json().get('error', {}).get('message', gemini_response.text)
                 raise Exception(f"Gemini API Error: {error_msg}")
                 
@@ -173,7 +180,6 @@ def process_lesson():
             if os.path.exists(filepath):
                 os.remove(filepath)
             
-            # If the error is from Groq file size limit, make it obvious
             if "Payload Too Large" in str(e) or "413" in str(e):
                 return jsonify({'error': 'The file is too large for the Groq API even after compression. Please upload a shorter audio file.'}), 413
                 
