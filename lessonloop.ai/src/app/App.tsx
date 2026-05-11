@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Sparkles, Copy, Mail, Settings, Upload, CheckCircle2, GripVertical } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Sparkles, Copy, Mail, Settings, Upload, CheckCircle2 } from "lucide-react";
 
 const PLACEHOLDER_EMAIL = `Hi [Student Name],
 
@@ -32,6 +32,7 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = (e: React.DragEvent) => {
@@ -46,6 +47,35 @@ export default function App() {
     if (file) setUploadedFile(file);
   };
 
+  const pollTaskStatus = async (taskId: string, apiUrl: string) => {
+    try {
+      const response = await fetch(`${apiUrl}/api/status/${taskId}`);
+      const data = await response.json();
+
+      if (data.status === 'completed') {
+        setEmailText(data.result.email);
+        setHasGenerated(true);
+        setIsGenerating(false);
+        setStatusMessage("");
+      } else if (data.status === 'failed') {
+        throw new Error(data.error || 'Failed during background processing');
+      } else {
+        // Still processing
+        if (data.status === 'compressing') setStatusMessage("Compressing audio...");
+        if (data.status === 'transcribing') setStatusMessage("Transcribing with Groq...");
+        if (data.status === 'generating_email') setStatusMessage("Writing email with Gemini...");
+        
+        // Wait 3 seconds and poll again
+        setTimeout(() => pollTaskStatus(taskId, apiUrl), 3000);
+      }
+    } catch (error) {
+      console.error("Polling error:", error);
+      setIsGenerating(false);
+      setStatusMessage("");
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error during polling'}`);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!uploadedFile) {
       alert("Please upload a file first.");
@@ -54,6 +84,7 @@ export default function App() {
 
     setIsGenerating(true);
     setHasGenerated(false);
+    setStatusMessage("Uploading file...");
 
     const formData = new FormData();
     formData.append('file', uploadedFile);
@@ -64,6 +95,8 @@ export default function App() {
     try {
       // Use environment variable for API URL, fallback to localhost for development
       const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5001';
+      
+      // Step 1: Upload the file and get a Task ID immediately
       const response = await fetch(`${apiUrl}/api/process-lesson`, {
         method: 'POST',
         body: formData,
@@ -71,17 +104,19 @@ export default function App() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate summary');
+        throw new Error(errorData.error || 'Failed to upload and start processing');
       }
 
       const data = await response.json();
-      setEmailText(data.email);
-      setHasGenerated(true);
+      
+      // Step 2: Start polling the server for the result using the Task ID
+      pollTaskStatus(data.task_id, apiUrl);
+
     } catch (error) {
-      console.error("Error generating summary:", error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
+      console.error("Error starting generation:", error);
       setIsGenerating(false);
+      setStatusMessage("");
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -205,13 +240,15 @@ export default function App() {
             className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-70 disabled:cursor-not-allowed text-white py-3.5 px-6 transition-all shadow-sm shadow-indigo-200"
           >
             {isGenerating ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-                <span className="text-sm" style={{ fontWeight: 600 }}>Generating…</span>
-              </>
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  <span className="text-sm" style={{ fontWeight: 600 }}>{statusMessage || "Generating…"}</span>
+                </div>
+              </div>
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
