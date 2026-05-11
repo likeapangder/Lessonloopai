@@ -6,6 +6,7 @@ import subprocess
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+import httpx
 from groq import Groq
 import requests
 
@@ -89,7 +90,10 @@ def process_lesson():
                 return jsonify({'error': 'GROQ_API_KEY is not set on the server.'}), 500
             
             logger.info(f"Transcribing file: {filename}")
-            groq_client = Groq(api_key=groq_api_key)
+            # Bypass the Groq library proxies bug by forcing a clean httpx client
+            http_client = httpx.Client(proxies=None)
+            groq_client = Groq(api_key=groq_api_key, http_client=http_client)
+            
             with open(filepath, "rb") as file_obj:
                 transcription = groq_client.audio.transcriptions.create(
                     file=(filename, file_obj.read()),
