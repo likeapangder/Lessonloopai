@@ -6,7 +6,6 @@ import subprocess
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
-import httpx
 from groq import Groq
 import requests
 
@@ -90,16 +89,24 @@ def process_lesson():
                 return jsonify({'error': 'GROQ_API_KEY is not set on the server.'}), 500
             
             logger.info(f"Transcribing file: {filename}")
-            # Bypass the Groq library proxies bug by forcing a clean httpx client
-            http_client = httpx.Client(proxies=None)
-            groq_client = Groq(api_key=groq_api_key, http_client=http_client)
+            
+            # Using REST API for Groq directly to bypass ANY library proxy bugs
+            url = "https://api.groq.com/openai/v1/audio/transcriptions"
+            headers = {"Authorization": f"Bearer {groq_api_key}"}
             
             with open(filepath, "rb") as file_obj:
-                transcription = groq_client.audio.transcriptions.create(
-                    file=(filename, file_obj.read()),
-                    model="whisper-large-v3",
-                    response_format="text"
-                )
+                files = {
+                    "file": (filename, file_obj),
+                    "model": (None, "whisper-large-v3"),
+                    "response_format": (None, "text")
+                }
+                groq_response = requests.post(url, headers=headers, files=files)
+                
+            if not groq_response.ok:
+                error_msg = groq_response.json().get('error', {}).get('message', groq_response.text)
+                raise Exception(f"Groq API Error: {error_msg}")
+                
+            transcript_text = groq_response.text
 
             # Step 2: Generate email with Google Gemini via REST API
             logger.info("Generating email draft with Gemini REST API")
@@ -117,8 +124,6 @@ def process_lesson():
                     style_guide = f.read()
             except FileNotFoundError:
                 style_guide = "Please write a summary email for the lesson. Act as an expert teaching assistant."
-
-            transcript_text = transcription.text if hasattr(transcription, 'text') else transcription
 
             prompt = f"""
             Student Name: {student_name}
@@ -145,13 +150,13 @@ def process_lesson():
             
             headers = {"Content-Type": "application/json"}
             
-            response = requests.post(url, json=payload, headers=headers)
+            gemini_response = requests.post(url, json=payload, headers=headers)
             
-            if not response.ok:
-                error_msg = response.json().get('error', {}).get('message', response.text)
+            if not gemini_response.ok:
+                error_msg = gemini_response.json().get('error', {}).get('message', gemini_response.text)
                 raise Exception(f"Gemini API Error: {error_msg}")
                 
-            response_data = response.json()
+            response_data = gemini_response.json()
             email_content = response_data['candidates'][0]['content']['parts'][0]['text']
 
             # Clean up uploaded file
