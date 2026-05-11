@@ -2,6 +2,7 @@ from flask_cors import CORS
 import os
 import json
 import logging
+import subprocess
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
@@ -58,6 +59,30 @@ def process_lesson():
         file.save(filepath)
 
         try:
+            # 0. Audio Compression (to bypass Groq's 25MB limit)
+            logger.info("Starting audio compression...")
+            try:
+                compressed_filename = f"compressed_{filename.rsplit('.', 1)[0]}.mp3"
+                compressed_filepath = os.path.join(app.config['UPLOAD_FOLDER'], compressed_filename)
+                
+                # Compress to mono 32k mp3
+                command = [
+                    "ffmpeg", "-i", filepath,
+                    "-ac", "1", "-b:a", "32k", "-y",
+                    compressed_filepath
+                ]
+                result = subprocess.run(command, capture_output=True, text=True)
+                
+                if result.returncode == 0 and os.path.exists(compressed_filepath):
+                    logger.info("Compression successful!")
+                    os.remove(filepath)
+                    filepath = compressed_filepath
+                    filename = compressed_filename
+                else:
+                    logger.warning(f"FFmpeg failed, using original file: {result.stderr}")
+            except Exception as e:
+                logger.error(f"Error during compression: {e}")
+
             # Step 1: Transcribe with Groq (Whisper)
             groq_api_key = os.environ.get("GROQ_API_KEY")
             if not groq_api_key:
@@ -138,6 +163,11 @@ def process_lesson():
             logger.error(f"Error processing lesson: {e}")
             if os.path.exists(filepath):
                 os.remove(filepath)
+            
+            # If the error is from Groq file size limit, make it obvious
+            if "Payload Too Large" in str(e) or "413" in str(e):
+                return jsonify({'error': 'The file is too large for the Groq API even after compression. Please upload a shorter audio file.'}), 413
+                
             return jsonify({'error': f'Processing Error: {str(e)}'}), 500
 
     return jsonify({'error': 'File type not allowed'}), 400
